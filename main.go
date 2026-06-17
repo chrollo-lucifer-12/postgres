@@ -1,3 +1,5 @@
 package main
 
-func main() {}
+import "github.com/postgres/server"
+
+func main() { server.RunServer() }

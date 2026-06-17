@@ -2,12 +2,17 @@ package server
 
 import (
 	"fmt"
+	"syscall"
 
 	"golang.org/x/sys/unix"
 )
 
-func RunServer() {
+type PostMaster struct {
+	listenFd int
+	epollFd  int
+}
 
+func NewPostMaster() *PostMaster {
 	listenFd, err := unix.Socket(unix.AF_INET, unix.SOCK_STREAM, 0)
 	if err != nil {
 		panic(err)
@@ -48,37 +53,48 @@ func RunServer() {
 		panic(err)
 	}
 
-	fmt.Println("Listening on :8080")
+	fmt.Println("Listening on :5432")
 
-	events := make([]unix.EpollEvent, 128)
+	return &PostMaster{
+		listenFd: listenFd,
+		epollFd:  epollFd,
+	}
+}
 
+func (p *PostMaster) accept() {
 	for {
-		n, err := unix.EpollWait(epollFd, events, -1)
+		connFd, _, err := unix.Accept(p.listenFd)
 
 		if err != nil {
+			if err == unix.EAGAIN || err == unix.EWOULDBLOCK {
+				break
+			}
 			panic(err)
 		}
 
-		for i := 0; i < n; i++ {
-			fd := int(events[i].Fd)
+		p.spawnProcess(connFd)
+	}
+}
 
-			if fd == listenFd {
-				for {
-					connFd, _, err := unix.Accept(listenFd)
-
-					if err != nil {
-						if err == unix.EAGAIN || err == unix.EWOULDBLOCK {
-							break
-						}
-						panic(err)
-					}
-
-					unix.SetNonblock(connFd, true)
-
-					unix.Close(connFd)
-				}
-			}
-		}
+func (p *PostMaster) spawnProcess(connFd int) {
+	r1, _, errno := syscall.RawSyscall(syscall.SYS_FORK, 0, 0, 0)
+	if errno != 0 {
+		panic(errno)
 	}
 
+	if r1 == 0 {
+		unix.Close(p.listenFd)
+
+		unix.SetNonblock(connFd, true)
+		handleClient(connFd)
+
+		unix.Close(connFd)
+		syscall.Exit(0)
+	}
+
+	unix.Close(connFd)
+}
+
+func handleClient(connFd int) {
+	unix.Write(connFd, []byte("hi"))
 }
