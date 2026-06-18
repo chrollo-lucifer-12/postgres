@@ -85,7 +85,7 @@ func (p *PostMaster) spawnProcess(connFd int) {
 	if r1 == 0 {
 		unix.Close(p.listenFd)
 
-		unix.SetNonblock(connFd, true)
+		unix.SetNonblock(connFd, false)
 		handleClient(connFd)
 
 		unix.Close(connFd)
@@ -93,8 +93,4 @@ func (p *PostMaster) spawnProcess(connFd int) {
 	}
 
 	unix.Close(connFd)
-}
-
-func handleClient(connFd int) {
-	unix.Write(connFd, []byte("hi"))
 }
