@@ -2,7 +2,9 @@ package server
 
 import (
 	"fmt"
+	"strings"
 
+	"github.com/postgres/core"
 	"golang.org/x/sys/unix"
 )
 
@@ -45,6 +47,7 @@ func (b *Backend) readLoop() {
 }
 
 func (b *Backend) processMessages() {
+
 	for {
 		idx := -1
 
@@ -61,7 +64,13 @@ func (b *Backend) processMessages() {
 
 		msg := b.recvBuf[:idx]
 
-		_, err := unix.Write(b.fd, msg)
+		core.Put("k", "v")
+
+		fmt.Println(strings.Split(string(msg), " "))
+
+		value := core.Get("k")
+
+		_, err := unix.Write(b.fd, []byte(value))
 		if err != nil {
 			fmt.Printf("[fd=%d] write error: %v\n", b.fd, err)
 			return

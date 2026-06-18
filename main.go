@@ -1,5 +1,11 @@
 package main
 
-import "github.com/postgres/server"
+import (
+	"github.com/postgres/core"
+	"github.com/postgres/server"
+)
 
-func main() { server.RunServer() }
+func main() {
+	core.Init()
+	server.RunServer()
+}
