@@ -1,6 +1,8 @@
 package wal
 
-import "log"
+import (
+	"log"
+)
 
 const MAX_ENTRIES = 2
 
@@ -43,7 +45,7 @@ func (w *WAL) Append(txID uint64, rmgr uint32, data []byte) {
 			LSN:      recordLSN,
 			TxID:     txID,
 			RMGR:     rmgr,
-			Length:   uint32(entrySize),
+			Length:   uint32(len(data)),
 			Checksum: 0,
 			PrevLsn:  w.lastLSN,
 		},
@@ -78,4 +80,14 @@ func (w *WAL) Flush() {
 	w.entries = nil
 	w.lsn = 0
 	w.lastLSN = 0
+}
+
+func Restore(apply func(WALEntry)) error {
+	err := ReadAll("pg_temp/pgdata/pg_wal", apply)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

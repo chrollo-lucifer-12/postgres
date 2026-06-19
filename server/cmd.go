@@ -11,7 +11,7 @@ type Cmd struct {
 	Args    []string
 }
 
-func getCmd(rawMsg []byte) Cmd {
+func GetCmd(rawMsg []byte) Cmd {
 	cmd := Cmd{}
 
 	splitMsg := strings.Split(string(rawMsg), " ")
@@ -22,7 +22,7 @@ func getCmd(rawMsg []byte) Cmd {
 	return cmd
 }
 
-func eval(cmd Cmd) []byte {
+func Eval(cmd Cmd) []byte {
 	switch cmd.Command {
 	case "SET":
 		key := cmd.Args[0]

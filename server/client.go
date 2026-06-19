@@ -62,9 +62,9 @@ func (b *Backend) processMessages() {
 
 		rawMsg := b.recvBuf[:idx]
 
-		parsedCommand := getCmd(rawMsg)
+		parsedCommand := GetCmd(rawMsg)
 
-		res := eval(parsedCommand)
+		res := Eval(parsedCommand)
 
 		_, err := unix.Write(b.fd, []byte(res))
 		if err != nil {

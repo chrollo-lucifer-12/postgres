@@ -17,3 +17,16 @@ func SaveControlFile(path string, cf ControlFile) error {
 
 	return os.WriteFile(path, data, 0644)
 }
+
+func LoadControlFile(path string) (ControlFile, error) {
+	var cf ControlFile
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return cf, err
+	}
+
+	err = json.Unmarshal(data, &cf)
+
+	return cf, err
+}

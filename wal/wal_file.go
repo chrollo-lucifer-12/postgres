@@ -2,8 +2,11 @@ package wal
 
 import (
 	"encoding/binary"
+	"io"
 	"os"
 	"path"
+	"path/filepath"
+	"sort"
 )
 
 type WALFile struct {
@@ -12,8 +15,74 @@ type WALFile struct {
 
 func NewWALFile() *WALFile {
 	return &WALFile{
-		dir: "pgdata/pg_wal",
+		dir: "pg_temp/pgdata/pg_wal",
 	}
+}
+
+func ReadAll(dir string, apply func(WALEntry)) error {
+	files, err := os.ReadDir(dir)
+	if err != nil {
+		return err
+	}
+
+	var walFiles []string
+
+	for _, file := range files {
+		if file.IsDir() {
+			continue
+		}
+
+		walFiles = append(walFiles, file.Name())
+	}
+
+	sort.Strings(walFiles)
+
+	for _, filename := range walFiles {
+		path := filepath.Join(dir, filename)
+
+		f, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+
+		for {
+			var header WALHeader
+
+			err := binary.Read(
+				f,
+				binary.LittleEndian,
+				&header,
+			)
+
+			if err == io.EOF {
+				break
+			}
+
+			if err != nil {
+				f.Close()
+				return err
+			}
+
+			data := make([]byte, header.Length)
+
+			_, err = io.ReadFull(f, data)
+			if err != nil {
+				f.Close()
+				return err
+			}
+
+			entry := WALEntry{
+				Header: header,
+				Data:   data,
+			}
+
+			apply(entry)
+		}
+
+		f.Close()
+	}
+
+	return nil
 }
 
 func (wf *WALFile) Write(entry WALEntry) error {
