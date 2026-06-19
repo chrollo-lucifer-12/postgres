@@ -1,6 +1,8 @@
 package wal
 
-const MAX_ENTRIES = 5
+import "log"
+
+const MAX_ENTRIES = 2
 
 type WALHeader struct {
 	LSN      LSN
@@ -54,6 +56,7 @@ func (w *WAL) Append(txID uint64, rmgr uint32, data []byte) {
 	w.lsn += LSN(entrySize)
 
 	if len(w.entries) == MAX_ENTRIES {
+		log.Println("triggering a disc save")
 		w.Flush()
 	}
 }
@@ -62,7 +65,10 @@ func (w *WAL) Flush() {
 	wf := NewWALFile()
 
 	for _, entry := range w.entries {
-		wf.Write(entry)
+		err := wf.Write(entry)
+		if err != nil {
+			log.Println(err)
+		}
 	}
 
 	w.entries = nil

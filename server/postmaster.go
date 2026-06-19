@@ -2,7 +2,6 @@ package server
 
 import (
 	"fmt"
-	"os"
 	"syscall"
 
 	"golang.org/x/sys/unix"
@@ -78,7 +77,6 @@ func (p *PostMaster) accept() {
 }
 
 func (p *PostMaster) spawnProcess(connFd int) {
-	fmt.Println("before fork", os.Getpid())
 
 	r1, _, errno := syscall.RawSyscall(syscall.SYS_FORK, 0, 0, 0)
 	if errno != 0 {
@@ -86,7 +84,7 @@ func (p *PostMaster) spawnProcess(connFd int) {
 	}
 
 	if r1 == 0 {
-		fmt.Println("child pid:", os.Getpid())
+
 		unix.Close(p.listenFd)
 
 		unix.SetNonblock(connFd, false)
@@ -94,8 +92,6 @@ func (p *PostMaster) spawnProcess(connFd int) {
 
 		unix.Close(connFd)
 		syscall.Exit(0)
-	} else {
-		fmt.Println("parent pid:", os.Getpid(), "child pid:", r1)
 	}
 
 	unix.Close(connFd)
