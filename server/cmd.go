@@ -11,6 +11,25 @@ type Cmd struct {
 	Args    []string
 }
 
+func ParseCmd(decodedMsg string) Cmd {
+	cmd := Cmd{}
+
+	splitMsg := strings.Split(string(decodedMsg), "|")
+
+	cmd.Command = splitMsg[0]
+
+	switch cmd.Command {
+	case "PUT":
+		cmd.Command = "SET"
+	case "DEL":
+		cmd.Command = "DEL"
+	}
+
+	cmd.Args = splitMsg[1:]
+
+	return cmd
+}
+
 func GetCmd(rawMsg []byte) Cmd {
 	cmd := Cmd{}
 
@@ -23,6 +42,7 @@ func GetCmd(rawMsg []byte) Cmd {
 }
 
 func Eval(cmd Cmd) []byte {
+
 	switch cmd.Command {
 	case "SET":
 		key := cmd.Args[0]

@@ -1,6 +1,8 @@
 package core
 
-import "github.com/postgres/wal"
+import (
+	"github.com/postgres/wal"
+)
 
 const (
 	RMGRKV = 1
@@ -9,16 +11,16 @@ const (
 	OpDel = "DEL"
 )
 
-var store map[string]string
+var Store map[string]string
 var w *wal.WAL
 
 func Init() {
-	store = make(map[string]string)
+	Store = make(map[string]string)
 	w = wal.NewWAL()
 }
 
 func Get(key string) string {
-	val, exists := store[key]
+	val, exists := Store[key]
 	if !exists {
 		return "-1"
 	}
@@ -26,6 +28,7 @@ func Get(key string) string {
 }
 
 func Put(key, value string) {
+
 	record := []byte("PUT|" + key + "|" + value)
 
 	w.Append(
@@ -34,7 +37,7 @@ func Put(key, value string) {
 		record,
 	)
 
-	store[key] = value
+	Store[key] = value
 }
 
 func Del(key string) {
@@ -46,5 +49,5 @@ func Del(key string) {
 		record,
 	)
 
-	delete(store, key)
+	delete(Store, key)
 }

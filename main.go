@@ -6,8 +6,8 @@ import (
 	"github.com/postgres/wal"
 )
 
-func apply(wal wal.WALEntry) {
-	cmd := server.GetCmd(wal.Data)
+func apply(entry wal.WALEntry) {
+	cmd := server.ParseCmd(string(entry.Data))
 	server.Eval(cmd)
 }
 

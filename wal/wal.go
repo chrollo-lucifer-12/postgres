@@ -1,6 +1,7 @@
 package wal
 
 import (
+	"encoding/binary"
 	"log"
 )
 
@@ -38,7 +39,8 @@ func (w *WAL) Append(txID uint64, rmgr uint32, data []byte) {
 
 	recordLSN := w.lsn
 
-	entrySize := uint64(len(data)) + uint64(40)
+	headerSize := binary.Size(WALHeader{})
+	entrySize := uint64(len(data)) + uint64(headerSize)
 
 	entry := WALEntry{
 		Header: WALHeader{
