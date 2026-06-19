@@ -7,6 +7,6 @@ import (
 
 func main() {
 	core.Init()
-	core.Put("k", "v")
+
 	server.RunServer()
 }
