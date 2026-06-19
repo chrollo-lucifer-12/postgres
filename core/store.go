@@ -17,3 +17,7 @@ func Get(key string) string {
 func Put(key, value string) {
 	store[key] = value
 }
+
+func Del(key string) {
+	delete(store, key)
+}

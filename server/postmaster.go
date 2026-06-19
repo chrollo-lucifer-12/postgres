@@ -77,6 +77,7 @@ func (p *PostMaster) accept() {
 }
 
 func (p *PostMaster) spawnProcess(connFd int) {
+
 	r1, _, errno := syscall.RawSyscall(syscall.SYS_FORK, 0, 0, 0)
 	if errno != 0 {
 		panic(errno)
