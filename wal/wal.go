@@ -1,5 +1,7 @@
 package wal
 
+const MAX_ENTRIES = 5
+
 type WALHeader struct {
 	LSN      LSN
 	TxID     uint64
@@ -50,4 +52,20 @@ func (w *WAL) Append(txID uint64, rmgr uint32, data []byte) {
 
 	w.lastLSN = recordLSN
 	w.lsn += LSN(entrySize)
+
+	if len(w.entries) == MAX_ENTRIES {
+		w.Flush()
+	}
+}
+
+func (w *WAL) Flush() {
+	wf := NewWALFile()
+
+	for _, entry := range w.entries {
+		wf.Write(entry)
+	}
+
+	w.entries = nil
+	w.lsn = 0
+	w.lastLSN = 0
 }

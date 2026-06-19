@@ -10,7 +10,7 @@ type WALFile struct {
 	dir string
 }
 
-func NewWALFile(dir string) *WALFile {
+func NewWALFile() *WALFile {
 	return &WALFile{
 		dir: "pgdata/pg_wal",
 	}
