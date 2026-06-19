@@ -71,6 +71,10 @@ func (w *WAL) Flush() {
 		}
 	}
 
+	SaveControlFile("pg_temp/pg_control.json", ControlFile{
+		LastLSN: w.lastLSN,
+	})
+
 	w.entries = nil
 	w.lsn = 0
 	w.lastLSN = 0
