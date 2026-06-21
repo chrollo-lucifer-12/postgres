@@ -80,3 +80,52 @@ func (bp *BufferPool) fetchPage(pageId int) (*Frame, error) {
 
 	return frame, nil
 }
+
+func (b *BufferPool) UnpinPage(
+	pageID int,
+	dirty bool,
+) error {
+
+	frameID, ok := b.PageTable[pageID]
+
+	if !ok {
+		return errors.New("page not found")
+	}
+
+	frame := &b.Frames[frameID]
+
+	if frame.PinCnt > 0 {
+		frame.PinCnt--
+	}
+
+	if dirty {
+		frame.Dirty = true
+	}
+
+	return nil
+}
+
+func (bp *BufferPool) FlushPage(pageId int) error {
+
+	frameID, ok := bp.PageTable[pageId]
+
+	if !ok {
+		return errors.New("page not found")
+	}
+
+	frame := &bp.Frames[frameID]
+
+	if !frame.Dirty {
+		return nil
+	}
+
+	err := bp.disk.WritePage(pageId, frame.Page.Data[:])
+
+	if err != nil {
+		return err
+	}
+
+	frame.Dirty = false
+
+	return nil
+}
