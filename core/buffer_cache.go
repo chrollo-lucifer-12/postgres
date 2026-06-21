@@ -94,7 +94,7 @@ func (bp *BufferPool) FetchPage(pageId int) (*Frame, error) {
 	}
 
 	frame := &bp.shared.Frames[frameID]
-	frame.Page = Page{}
+	frame.Page = *NewPage()
 
 	err := bp.disk.ReadPage(pageId, frame.Page.Data[:])
 

@@ -1,6 +1,7 @@
 package core
 
 import (
+	"log"
 	"strings"
 
 	"github.com/postgres/wal"
@@ -30,7 +31,7 @@ type RID struct {
 func Init() {
 	w = wal.NewWAL()
 
-	disk, err := NewDiskManager("data.db")
+	disk, err := NewDiskManager("pg_temp/data.db")
 	if err != nil {
 		panic(err)
 	}
@@ -54,6 +55,7 @@ func Get(key string) string {
 
 	frame, err := bpm.FetchPage(rid.PageID)
 	if err != nil {
+		log.Println("no frame")
 		return "-1"
 	}
 
@@ -62,6 +64,7 @@ func Get(key string) string {
 	bpm.UnpinPage(rid.PageID, false)
 
 	if err != nil {
+		log.Println("error reading data")
 		return "-1"
 	}
 
@@ -79,6 +82,8 @@ func Put(key, value string) {
 
 	record := []byte("PUT|" + key + "|" + value)
 
+	log.Println("record :", string(record))
+
 	w.Append(
 		1,
 		RMGRKV,
@@ -90,6 +95,8 @@ func Put(key, value string) {
 		frame, err := bpm.FetchPage(oldRID.PageID)
 
 		if err == nil {
+			log.Println(err)
+
 			frame.Page.Delete(oldRID.SlotID)
 
 			bpm.UnpinPage(
@@ -106,12 +113,15 @@ func Put(key, value string) {
 	frame, err := bpm.FetchPage(pageID)
 
 	if err != nil {
+		log.Println(err)
 		return
 	}
 
 	slotID, err := frame.Page.Insert(data)
 
 	if err != nil {
+
+		log.Println(err)
 
 		bpm.UnpinPage(pageID, false)
 
@@ -122,12 +132,15 @@ func Put(key, value string) {
 		frame, err = bpm.FetchPage(pageID)
 
 		if err != nil {
+
+			log.Println(err)
 			return
 		}
 
 		slotID, err = frame.Page.Insert(data)
 
 		if err != nil {
+			log.Panicln(err)
 			return
 		}
 	}

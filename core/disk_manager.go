@@ -1,6 +1,7 @@
 package core
 
 import (
+	"io"
 	"os"
 )
 
@@ -26,7 +27,7 @@ func (d *DiskManager) ReadPage(pageID int, data []byte) error {
 
 	_, err := d.file.ReadAt(data, offset)
 
-	if err == os.ErrNotExist {
+	if err == io.EOF {
 		return nil
 	}
 

@@ -14,10 +14,7 @@ func apply(entry wal.WALEntry) {
 func main() {
 	core.Init()
 
-	err := wal.Restore(apply)
-	if err != nil {
-		panic(err)
-	}
+	wal.Restore(apply)
 
 	server.RunServer()
 }
