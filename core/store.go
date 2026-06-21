@@ -3,8 +3,6 @@ package core
 import (
 	"log"
 	"strings"
-
-	"github.com/postgres/wal"
 )
 
 const (
@@ -15,12 +13,7 @@ const (
 )
 
 var (
-	index map[string]RID
-
-	w   *wal.WAL
 	bpm *BufferPool
-
-	nextPageID int
 )
 
 type RID struct {
@@ -29,7 +22,7 @@ type RID struct {
 }
 
 func Init() {
-	w = wal.NewWAL()
+	//	w = wal.NewWAL()
 
 	disk, err := NewDiskManager("pg_temp/data.db")
 	if err != nil {
@@ -41,13 +34,13 @@ func Init() {
 		panic(err)
 	}
 
-	index = make(map[string]RID)
+	//	index = make(map[string]RID)
 
-	nextPageID = 0
+	// nextPageID = 0
 }
 
 func Get(key string) string {
-	rid, ok := index[key]
+	rid, ok := bpm.IndexGet(key)
 
 	if !ok {
 		return "-1"
@@ -84,13 +77,13 @@ func Put(key, value string) {
 
 	log.Println("record :", string(record))
 
-	w.Append(
-		1,
-		RMGRKV,
-		record,
-	)
+	// w.Append(
+	// 	1,
+	// 	RMGRKV,
+	// 	record,
+	// )
 
-	if oldRID, ok := index[key]; ok {
+	if oldRID, ok := bpm.IndexGet(key); ok {
 
 		frame, err := bpm.FetchPage(oldRID.PageID)
 
@@ -108,7 +101,7 @@ func Put(key, value string) {
 
 	data := []byte(key + "|" + value)
 
-	pageID := nextPageID
+	pageID := int(bpm.shared.NextPageID)
 
 	frame, err := bpm.FetchPage(pageID)
 
@@ -125,9 +118,9 @@ func Put(key, value string) {
 
 		bpm.UnpinPage(pageID, false)
 
-		nextPageID++
+		bpm.shared.NextPageID++
 
-		pageID = nextPageID
+		pageID = int(bpm.shared.NextPageID)
 
 		frame, err = bpm.FetchPage(pageID)
 
@@ -145,25 +138,22 @@ func Put(key, value string) {
 		}
 	}
 
-	index[key] = RID{
-		PageID: pageID,
-		SlotID: slotID,
-	}
+	bpm.IndexSet(key, RID{PageID: pageID, SlotID: slotID})
 
 	bpm.UnpinPage(pageID, true)
 }
 
 func Del(key string) {
 
-	record := []byte("DEL|" + key)
+	//	record := []byte("DEL|" + key)
 
-	w.Append(
-		1,
-		RMGRKV,
-		record,
-	)
+	// w.Append(
+	// 	1,
+	// 	RMGRKV,
+	// 	record,
+	// )
 
-	rid, ok := index[key]
+	rid, ok := bpm.IndexGet(key)
 
 	if !ok {
 		return
@@ -182,5 +172,5 @@ func Del(key string) {
 		true,
 	)
 
-	delete(index, key)
+	bpm.IndexDelete(key)
 }
