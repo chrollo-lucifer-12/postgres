@@ -1,47 +1,73 @@
 package core
 
-import "errors"
+import (
+	"errors"
+	"syscall"
+	"unsafe"
+)
 
 const InvalidPageID = -1
 
 type Frame struct {
 	PageID int32
-	Dirty  bool
+	Dirty  uint8
 	PinCnt uint32
 
 	Page Page
 }
 
+type SharedState struct {
+	PageTable [10000]int
+	Frames    [1024]Frame
+}
+
 type BufferPool struct {
-	Frames    []Frame
-	PageTable map[int]int
+	mem    []byte
+	shared *SharedState
 
 	disk *DiskManager
 }
 
 func NewBufferPool(
-	size int,
+	frameCount int,
 	disk *DiskManager,
-) *BufferPool {
+) (*BufferPool, error) {
 
-	frames := make([]Frame, size)
+	sizeBytes := int(unsafe.Sizeof(SharedState{}))
 
-	for i := range frames {
-		frames[i].PageID = InvalidPageID
+	mem, err := syscall.Mmap(-1, 0, sizeBytes, syscall.PROT_READ|syscall.PROT_WRITE,
+		syscall.MAP_SHARED|syscall.MAP_ANON)
+
+	if err != nil {
+		return nil, err
+	}
+
+	shared := (*SharedState)(
+		unsafe.Pointer(&mem[0]),
+	)
+
+	for i := range shared.PageTable {
+		shared.PageTable[i] = InvalidPageID
+	}
+
+	for i := range shared.Frames {
+		shared.Frames[i].PageID = InvalidPageID
 	}
 
 	return &BufferPool{
-		Frames: frames,
+		mem:    mem,
+		shared: shared,
+		disk:   disk,
+	}, nil
+}
 
-		PageTable: make(map[int]int),
-
-		disk: disk,
-	}
+func (bp *BufferPool) Frame(i int) *Frame {
+	return &bp.shared.Frames[i]
 }
 
 func (bp *BufferPool) findFreeFrame() int {
-	for i := range bp.Frames {
-		if bp.Frames[i].PageID == InvalidPageID {
+	for i := range bp.shared.Frames {
+		if bp.shared.Frames[i].PageID == InvalidPageID {
 			return i
 		}
 	}
@@ -49,22 +75,26 @@ func (bp *BufferPool) findFreeFrame() int {
 	return -1
 }
 
-func (bp *BufferPool) fetchPage(pageId int) (*Frame, error) {
+func (bp *BufferPool) FetchPage(pageId int) (*Frame, error) {
 
-	if frameID, ok := bp.PageTable[pageId]; ok {
-		frame := &bp.Frames[frameID]
+	frameID := bp.shared.PageTable[pageId]
+
+	if frameID != -1 {
+		frame := bp.Frame(frameID)
+
 		frame.PinCnt++
 
 		return frame, nil
 	}
 
-	frameID := bp.findFreeFrame()
+	frameID = bp.findFreeFrame()
 
 	if frameID == -1 {
 		return nil, errors.New("buffer pool full")
 	}
 
-	frame := &bp.Frames[frameID]
+	frame := &bp.shared.Frames[frameID]
+	frame.Page = Page{}
 
 	err := bp.disk.ReadPage(pageId, frame.Page.Data[:])
 
@@ -74,32 +104,32 @@ func (bp *BufferPool) fetchPage(pageId int) (*Frame, error) {
 
 	frame.PageID = int32(pageId)
 	frame.PinCnt = 1
-	frame.Dirty = false
+	frame.Dirty = 0
 
-	bp.PageTable[pageId] = frameID
+	bp.shared.PageTable[pageId] = frameID
 
 	return frame, nil
 }
 
-func (b *BufferPool) UnpinPage(
+func (bp *BufferPool) UnpinPage(
 	pageID int,
 	dirty bool,
 ) error {
 
-	frameID, ok := b.PageTable[pageID]
+	frameID := bp.shared.PageTable[pageID]
 
-	if !ok {
+	if frameID == -1 {
 		return errors.New("page not found")
 	}
 
-	frame := &b.Frames[frameID]
+	frame := &bp.shared.Frames[frameID]
 
 	if frame.PinCnt > 0 {
 		frame.PinCnt--
 	}
 
 	if dirty {
-		frame.Dirty = true
+		frame.Dirty = 1
 	}
 
 	return nil
@@ -107,15 +137,15 @@ func (b *BufferPool) UnpinPage(
 
 func (bp *BufferPool) FlushPage(pageId int) error {
 
-	frameID, ok := bp.PageTable[pageId]
+	frameID := bp.shared.PageTable[pageId]
 
-	if !ok {
+	if frameID == -1 {
 		return errors.New("page not found")
 	}
 
-	frame := &bp.Frames[frameID]
+	frame := &bp.shared.Frames[frameID]
 
-	if !frame.Dirty {
+	if frame.Dirty == 0 {
 		return nil
 	}
 
@@ -125,7 +155,7 @@ func (bp *BufferPool) FlushPage(pageId int) error {
 		return err
 	}
 
-	frame.Dirty = false
+	frame.Dirty = 0
 
 	return nil
 }

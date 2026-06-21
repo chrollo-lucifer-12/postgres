@@ -1,7 +1,6 @@
 package core
 
 import (
-	"log"
 	"strings"
 
 	"github.com/postgres/wal"
@@ -15,9 +14,12 @@ const (
 )
 
 var (
-	pages []*Page
 	index map[string]RID
-	w     *wal.WAL
+
+	w   *wal.WAL
+	bpm *BufferPool
+
+	nextPageID int
 )
 
 type RID struct {
@@ -28,11 +30,19 @@ type RID struct {
 func Init() {
 	w = wal.NewWAL()
 
-	pages = []*Page{
-		NewPage(),
+	disk, err := NewDiskManager("data.db")
+	if err != nil {
+		panic(err)
+	}
+
+	bpm, err = NewBufferPool(1024, disk)
+	if err != nil {
+		panic(err)
 	}
 
 	index = make(map[string]RID)
+
+	nextPageID = 0
 }
 
 func Get(key string) string {
@@ -42,11 +52,15 @@ func Get(key string) string {
 		return "-1"
 	}
 
-	log.Println(rid.PageID, rid.SlotID)
+	frame, err := bpm.FetchPage(rid.PageID)
+	if err != nil {
+		return "-1"
+	}
 
-	page := pages[rid.PageID]
+	data, err := frame.Page.Get(rid.SlotID)
 
-	data, err := page.Get(rid.SlotID)
+	bpm.UnpinPage(rid.PageID, false)
+
 	if err != nil {
 		return "-1"
 	}
@@ -58,6 +72,7 @@ func Get(key string) string {
 	}
 
 	return parts[1]
+
 }
 
 func Put(key, value string) {
@@ -71,36 +86,62 @@ func Put(key, value string) {
 	)
 
 	if oldRID, ok := index[key]; ok {
-		pages[oldRID.PageID].Delete(oldRID.SlotID)
+
+		frame, err := bpm.FetchPage(oldRID.PageID)
+
+		if err == nil {
+			frame.Page.Delete(oldRID.SlotID)
+
+			bpm.UnpinPage(
+				oldRID.PageID,
+				true,
+			)
+		}
 	}
 
 	data := []byte(key + "|" + value)
 
-	pageID := len(pages) - 1
-	page := pages[pageID]
+	pageID := nextPageID
 
-	slotID, err := page.Insert(data)
+	frame, err := bpm.FetchPage(pageID)
+
+	if err != nil {
+		return
+	}
+
+	slotID, err := frame.Page.Insert(data)
 
 	if err != nil {
 
-		page = NewPage()
+		bpm.UnpinPage(pageID, false)
 
-		pages = append(pages, page)
+		nextPageID++
 
-		pageID = len(pages) - 1
+		pageID = nextPageID
 
-		slotID, _ = page.Insert(data)
+		frame, err = bpm.FetchPage(pageID)
+
+		if err != nil {
+			return
+		}
+
+		slotID, err = frame.Page.Insert(data)
+
+		if err != nil {
+			return
+		}
 	}
-
-	log.Println(pageID, slotID)
 
 	index[key] = RID{
 		PageID: pageID,
 		SlotID: slotID,
 	}
+
+	bpm.UnpinPage(pageID, true)
 }
 
 func Del(key string) {
+
 	record := []byte("DEL|" + key)
 
 	w.Append(
@@ -110,13 +151,23 @@ func Del(key string) {
 	)
 
 	rid, ok := index[key]
+
 	if !ok {
 		return
 	}
 
-	page := pages[rid.PageID]
+	frame, err := bpm.FetchPage(rid.PageID)
 
-	page.Delete(rid.SlotID)
+	if err != nil {
+		return
+	}
+
+	frame.Page.Delete(rid.SlotID)
+
+	bpm.UnpinPage(
+		rid.PageID,
+		true,
+	)
 
 	delete(index, key)
 }
