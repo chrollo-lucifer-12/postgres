@@ -35,7 +35,7 @@ func NewPage() *Page {
 
 	p.SetLower(HeaderSize)
 	p.SetUpper(PageSize)
-	p.Count()
+	p.SetCount(0)
 
 	return p
 }
@@ -45,11 +45,11 @@ func (p *Page) Lower() uint16 {
 }
 
 func (p *Page) Upper() uint16 {
-	return binary.BigEndian.Uint16(p.Data[2:4])
+	return binary.LittleEndian.Uint16(p.Data[2:4])
 }
 
 func (p *Page) Count() uint16 {
-	return binary.BigEndian.Uint16(p.Data[4:6])
+	return binary.LittleEndian.Uint16(p.Data[4:6])
 }
 
 func (p *Page) SetLower(v uint16) {
@@ -98,11 +98,13 @@ func (p *Page) Insert(data []byte) (int, error) {
 	binary.LittleEndian.PutUint16(p.Data[lower:lower+2], upper)
 	binary.LittleEndian.PutUint16(p.Data[lower+2:lower+4], uint16(len(data)))
 
+	slotID := int(p.Count())
+
 	p.SetUpper(upper)
-	p.SetLower(lower)
+	p.SetLower(lower + SlotSize)
 	p.SetCount(p.Count() + 1)
 
-	return int(p.Count() - 1), nil
+	return slotID, nil
 }
 
 func (p *Page) Get(slotID int) ([]byte, error) {

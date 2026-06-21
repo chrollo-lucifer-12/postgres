@@ -1,6 +1,9 @@
 package core
 
 import (
+	"log"
+	"strings"
+
 	"github.com/postgres/wal"
 )
 
@@ -11,20 +14,50 @@ const (
 	OpDel = "DEL"
 )
 
-var Store map[string]string
-var w *wal.WAL
+var (
+	pages []*Page
+	index map[string]RID
+	w     *wal.WAL
+)
+
+type RID struct {
+	PageID int
+	SlotID int
+}
 
 func Init() {
-	Store = make(map[string]string)
 	w = wal.NewWAL()
+
+	pages = []*Page{
+		NewPage(),
+	}
+
+	index = make(map[string]RID)
 }
 
 func Get(key string) string {
-	val, exists := Store[key]
-	if !exists {
+	rid, ok := index[key]
+
+	if !ok {
 		return "-1"
 	}
-	return val
+
+	log.Println(rid.PageID, rid.SlotID)
+
+	page := pages[rid.PageID]
+
+	data, err := page.Get(rid.SlotID)
+	if err != nil {
+		return "-1"
+	}
+
+	parts := strings.SplitN(string(data), "|", 2)
+
+	if len(parts) != 2 {
+		return "-1"
+	}
+
+	return parts[1]
 }
 
 func Put(key, value string) {
@@ -37,7 +70,34 @@ func Put(key, value string) {
 		record,
 	)
 
-	Store[key] = value
+	if oldRID, ok := index[key]; ok {
+		pages[oldRID.PageID].Delete(oldRID.SlotID)
+	}
+
+	data := []byte(key + "|" + value)
+
+	pageID := len(pages) - 1
+	page := pages[pageID]
+
+	slotID, err := page.Insert(data)
+
+	if err != nil {
+
+		page = NewPage()
+
+		pages = append(pages, page)
+
+		pageID = len(pages) - 1
+
+		slotID, _ = page.Insert(data)
+	}
+
+	log.Println(pageID, slotID)
+
+	index[key] = RID{
+		PageID: pageID,
+		SlotID: slotID,
+	}
 }
 
 func Del(key string) {
@@ -49,5 +109,14 @@ func Del(key string) {
 		record,
 	)
 
-	delete(Store, key)
+	rid, ok := index[key]
+	if !ok {
+		return
+	}
+
+	page := pages[rid.PageID]
+
+	page.Delete(rid.SlotID)
+
+	delete(index, key)
 }
