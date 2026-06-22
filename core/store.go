@@ -42,13 +42,15 @@ func Init() {
 func Get(key string) string {
 	rid, ok := bpm.IndexGet(key)
 
+	log.Println("pageid :", rid.PageID)
+
 	if !ok {
 		return "-1"
 	}
 
 	frame, err := bpm.FetchPage(rid.PageID)
 	if err != nil {
-		log.Println("no frame")
+		log.Panicln(err)
 		return "-1"
 	}
 
@@ -81,60 +83,77 @@ func Put(key, value string) {
 	// 	record,
 	// )
 
-	if oldRID, ok := bpm.IndexGet(key); ok {
-
-		frame, err := bpm.FetchPage(oldRID.PageID)
-
-		if err == nil {
-			log.Println("page already existing :", err)
-
-			frame.Page.Delete(oldRID.SlotID)
-
-			bpm.UnpinPage(
-				oldRID.PageID,
-				true,
-			)
-		}
-	}
-
 	data := []byte(key + "|" + value)
 
-	pageID := bpm.NewPageID()
+	log.Println(string(data))
 
-	frame, err := bpm.FetchPage(pageID)
+	var frame *Frame
+	var pageID int
+	var slotID int
+	var err error
 
-	if err != nil {
-		log.Println("error when fetching page :", err)
-		return
-	}
-
-	slotID, err := frame.Page.Insert(data)
-
-	if err != nil {
-
-		log.Println(err)
-
-		bpm.UnpinPage(pageID, false)
-
-		pageID = bpm.NewPageID()
-
-		frame, err = bpm.FetchPage(pageID)
+	for i := 0; i < int(bpm.shared.NextPageID); i++ {
+		frame, err := bpm.FetchPage(i)
 
 		if err != nil {
-
-			log.Println(err)
-			return
+			continue
 		}
 
 		slotID, err = frame.Page.Insert(data)
 
-		if err != nil {
-			log.Panicln(err)
+		if err == nil {
+			pageID = i
+
+			log.Println("inserted at: ", pageID)
+
+			if oldRID, ok := bpm.IndexGet(key); ok {
+				oldFrame, err := bpm.FetchPage(oldRID.PageID)
+				if err == nil {
+					oldFrame.Page.Delete(oldRID.SlotID)
+					bpm.UnpinPage(oldRID.PageID, true)
+				}
+			}
+
+			bpm.IndexSet(key, RID{
+				PageID: pageID,
+				SlotID: slotID,
+			})
+
+			bpm.UnpinPage(pageID, true)
 			return
+		}
+
+		bpm.UnpinPage(i, false)
+	}
+
+	pageID = bpm.NewPageID()
+
+	frame, err = bpm.FetchPage(pageID)
+	if err != nil {
+		log.Println("error fetching page:", err)
+		return
+	}
+
+	slotID, err = frame.Page.Insert(data)
+	if err != nil {
+		log.Panicln("even new page is full:", err)
+		return
+	}
+
+	log.Println("inserted at: ", pageID)
+
+	if oldRID, ok := bpm.IndexGet(key); ok {
+		oldFrame, err := bpm.FetchPage(oldRID.PageID)
+		if err == nil {
+			oldFrame.Page.Delete(oldRID.SlotID)
+			bpm.UnpinPage(oldRID.PageID, true)
 		}
 	}
 
-	bpm.IndexSet(key, RID{PageID: pageID, SlotID: slotID})
+	bpm.IndexSet(key, RID{
+		PageID: pageID,
+		SlotID: slotID,
+	})
 
 	bpm.UnpinPage(pageID, true)
 }

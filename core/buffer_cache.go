@@ -2,6 +2,7 @@ package core
 
 import (
 	"errors"
+	"log"
 	"syscall"
 	"unsafe"
 )
@@ -145,7 +146,21 @@ func (bp *BufferPool) Frame(i int) *Frame {
 
 func (bp *BufferPool) findFreeFrame() int {
 	for i := range bp.shared.Frames {
-		if bp.shared.Frames[i].PageID == InvalidPageID {
+		frame := &bp.shared.Frames[i]
+		if frame.PageID != InvalidPageID && frame.PinCnt == 0 {
+			log.Println("flushing page :", frame.PageID)
+			_ = bp.FlushPage(int(frame.PageID))
+
+			bp.shared.PageTable[frame.PageID] = InvalidPageID
+
+			frame.PageID = InvalidPageID
+			frame.Dirty = 0
+		}
+	}
+
+	for i := range bp.shared.Frames {
+		frame := &bpm.shared.Frames[i]
+		if frame.PageID == InvalidPageID {
 			return i
 		}
 	}
@@ -167,12 +182,16 @@ func (bp *BufferPool) FetchPage(pageId int) (*Frame, error) {
 
 	frameID = bp.findFreeFrame()
 
+	log.Println("free frame at: ", frameID)
+
 	if frameID == -1 {
 		return nil, errors.New("buffer pool full")
 	}
 
 	frame := &bp.shared.Frames[frameID]
 	frame.Page = *NewPage()
+
+	log.Println("reading from disc :", pageId)
 
 	err := bp.disk.ReadPage(pageId, frame.Page.Data[:])
 
