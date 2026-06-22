@@ -31,7 +31,7 @@ type IndexEntry struct {
 
 type SharedState struct {
 	PageTable [10000]int
-	Frames    [1024]Frame
+	Frames    [2]Frame
 
 	NextPageID int32
 
@@ -131,6 +131,12 @@ func NewBufferPool(
 		shared: shared,
 		disk:   disk,
 	}, nil
+}
+
+func (bp *BufferPool) NewPageID() int {
+	id := int(bp.shared.NextPageID)
+	bp.shared.NextPageID++
+	return id
 }
 
 func (bp *BufferPool) Frame(i int) *Frame {

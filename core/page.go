@@ -6,7 +6,7 @@ import (
 )
 
 const (
-	PageSize   = 8192
+	PageSize   = 20
 	HeaderSize = 8
 	SlotSize   = 4
 )

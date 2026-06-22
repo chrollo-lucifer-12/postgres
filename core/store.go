@@ -73,9 +73,7 @@ func Get(key string) string {
 
 func Put(key, value string) {
 
-	record := []byte("PUT|" + key + "|" + value)
-
-	log.Println("record :", string(record))
+	//	record := []byte("PUT|" + key + "|" + value)
 
 	// w.Append(
 	// 	1,
@@ -88,7 +86,7 @@ func Put(key, value string) {
 		frame, err := bpm.FetchPage(oldRID.PageID)
 
 		if err == nil {
-			log.Println(err)
+			log.Println("page already existing :", err)
 
 			frame.Page.Delete(oldRID.SlotID)
 
@@ -101,12 +99,12 @@ func Put(key, value string) {
 
 	data := []byte(key + "|" + value)
 
-	pageID := int(bpm.shared.NextPageID)
+	pageID := bpm.NewPageID()
 
 	frame, err := bpm.FetchPage(pageID)
 
 	if err != nil {
-		log.Println(err)
+		log.Println("error when fetching page :", err)
 		return
 	}
 
@@ -118,9 +116,7 @@ func Put(key, value string) {
 
 		bpm.UnpinPage(pageID, false)
 
-		bpm.shared.NextPageID++
-
-		pageID = int(bpm.shared.NextPageID)
+		pageID = bpm.NewPageID()
 
 		frame, err = bpm.FetchPage(pageID)
 
